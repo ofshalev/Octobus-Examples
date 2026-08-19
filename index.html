@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Octobus · Tel Aviv Deviation Examples</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIINfQ3ynj8cJQ1V6V0CPIK6Yh0r9Qp8bqs="
+    crossorigin=""
+  >
+  <style>
+    :root { color-scheme: light; font-family: Arial, Helvetica, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f5f7f9; color: #172033; }
+    header { padding: 16px 20px; background: #ffffff; border-bottom: 1px solid #d8dee7; }
+    header h1 { margin: 0 0 4px; font-size: 22px; }
+    header p { margin: 0; color: #5b6472; font-size: 14px; }
+    .toolbar { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; padding: 14px 20px; background: #ffffff; border-bottom: 1px solid #d8dee7; }
+    .field { display: flex; flex-direction: column; gap: 5px; min-width: 280px; }
+    label { font-size: 12px; font-weight: 700; color: #5b6472; }
+    select { min-height: 38px; padding: 7px 10px; border: 1px solid #b9c2cf; border-radius: 6px; background: #ffffff; font-size: 14px; }
+    #status { min-height: 38px; display: flex; align-items: center; color: #5b6472; font-size: 13px; }
+    #map { height: calc(100vh - 145px); min-height: 520px; width: 100%; }
+    .legend { background: rgba(255,255,255,.94); border: 1px solid #d8dee7; border-radius: 6px; padding: 8px 10px; line-height: 1.45; font-size: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+    .legend-row { display: flex; align-items: center; gap: 7px; margin: 3px 0; }
+    .legend-line { width: 24px; border-top: 4px solid; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Octobus · Tel Aviv Deviation Examples</h1>
+    <p>Curated GeoJSON outputs from successful deviation-planner runs.</p>
+  </header>
+  <div class="toolbar">
+    <div class="field">
+      <label for="example-select">Saved example</label>
+      <select id="example-select"></select>
+    </div>
+    <div id="status" role="status" aria-live="polite">Loading…</div>
+  </div>
+  <div id="map" aria-label="Map of the selected Octobus deviation example"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    const examples = [
+      { route: "5", direction: "1", generated: "2026-08-19 08:20:35", file: "tel_aviv/route_5_direction_1_approved_deviation_found_2026-08-19_08-20-35.geojson" },
+      { route: "55", direction: "0", generated: "2026-08-19 08:23:21", file: "tel_aviv/route_55_direction_0_approved_deviation_found_2026-08-19_08-23-21.geojson" },
+      { route: "66", direction: "0", generated: "2026-08-19 08:19:31", file: "tel_aviv/route_66_direction_0_approved_deviation_found_2026-08-19_08-19-31.geojson" },
+      { route: "142", direction: "0", generated: "2026-08-19 08:13:03", file: "tel_aviv/route_142_direction_0_approved_deviation_found_2026-08-19_08-13-03.geojson" },
+      { route: "161", direction: "0", generated: "2026-08-19 08:21:49", file: "tel_aviv/route_161_direction_0_approved_deviation_found_2026-08-19_08-21-49.geojson" }
+    ];
+    const select = document.getElementById("example-select");
+    const status = document.getElementById("status");
+    for (const example of examples) {
+      const option = document.createElement("option");
+      option.value = example.file;
+      option.textContent = `Route ${example.route} · direction ${example.direction} · ${example.generated}`;
+      select.appendChild(option);
+    }
+    const map = L.map("map", { zoomControl: true }).setView([32.075, 34.78], 13);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
+    let currentLayer = null;
+    function styleFeature(feature) {
+      const properties = feature.properties || {};
+      return { color: properties.stroke || "#0f6fff", weight: properties["stroke-width"] || 3, opacity: properties["stroke-opacity"] ?? 0.9 };
+    }
+    function pointToLayer(feature, latlng) {
+      const properties = feature.properties || {};
+      const color = properties["marker-color"] || properties.stroke || "#0f6fff";
+      return L.circleMarker(latlng, { radius: 6, color, weight: 2, fillColor: color, fillOpacity: 0.9 });
+    }
+    function popupContent(feature) {
+      const properties = feature.properties || {};
+      const entries = Object.entries(properties).filter(([, value]) => value !== null && value !== undefined && value !== "").slice(0, 12);
+      if (!entries.length) return "Octobus GeoJSON feature";
+      return entries.map(([key, value]) => `<strong>${key}</strong>: ${String(value)}`).join("<br>");
+    }
+    async function loadExample(filename) {
+      status.textContent = "Loading GeoJSON…";
+      try {
+        const response = await fetch(filename, { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const geojson = await response.json();
+        if (currentLayer) map.removeLayer(currentLayer);
+        currentLayer = L.geoJSON(geojson, { style: styleFeature, pointToLayer, onEachFeature(feature, layer) { layer.bindPopup(popupContent(feature)); } }).addTo(map);
+        const bounds = currentLayer.getBounds();
+        if (bounds.isValid()) map.fitBounds(bounds, { padding: [24, 24] });
+        const selected = examples.find(example => example.file === filename);
+        status.textContent = selected ? `Showing route ${selected.route}, direction ${selected.direction}` : "GeoJSON loaded";
+      } catch (error) {
+        console.error(error);
+        status.textContent = "Could not load this GeoJSON file.";
+      }
+    }
+    select.addEventListener("change", () => loadExample(select.value));
+    const legend = L.control({ position: "bottomright" });
+    legend.onAdd = function () {
+      const div = L.DomUtil.create("div", "legend");
+      div.innerHTML = `<div class="legend-row"><span class="legend-line" style="border-color:#1f2a7a"></span><span>Original route</span></div><div class="legend-row"><span class="legend-line" style="border-color:#00bcd4"></span><span>Deviation path</span></div>`;
+      return div;
+    };
+    legend.addTo(map);
+    loadExample(examples[0].file);
+  </script>
+</body>
+</html>
