@@ -21,6 +21,8 @@
     .legend { background: rgba(255,255,255,.94); border: 1px solid #d8dee7; border-radius: 6px; padding: 8px 10px; line-height: 1.45; font-size: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
     .legend-row { display: flex; align-items: center; gap: 7px; margin: 3px 0; }
     .legend-line { width: 24px; border-top: 4px solid; }
+    .ring-marker { background: transparent; border: 0; }
+    .ring-marker svg { display: block; }
   </style>
 </head>
 <body>
@@ -87,13 +89,17 @@
     function pointToLayer(feature, latlng) {
       const properties = feature.properties || {};
       const color = stopColors[properties.type] || properties["marker-color"] || properties.stroke || "#0f6fff";
+      const html = `<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="#fff" stroke="${color}" stroke-width="3"/></svg>`;
 
-      return L.circleMarker(latlng, {
-        radius: 6,
-        color,
-        weight: 3,
-        fillColor: "#ffffff",
-        fillOpacity: 1
+      return L.marker(latlng, {
+        icon: L.divIcon({
+          className: "ring-marker",
+          html,
+          iconSize: [16, 16],
+          iconAnchor: [8, 8],
+          popupAnchor: [0, -8]
+        }),
+        keyboard: false
       });
     }
 
