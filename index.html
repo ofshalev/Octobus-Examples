@@ -9,9 +9,11 @@
     :root { color-scheme: light; font-family: Arial, Helvetica, sans-serif; }
     * { box-sizing: border-box; }
     body { margin: 0; background: #f5f7f9; color: #172033; }
-    header { padding: 16px 20px; background: #ffffff; border-bottom: 1px solid #d8dee7; }
-    header h1 { margin: 0 0 4px; font-size: 22px; }
-    header p { margin: 0; color: #5b6472; font-size: 14px; }
+    header { padding: 12px 20px; background: #ffffff; border-bottom: 1px solid #d8dee7; }
+    .title-row { display: flex; align-items: center; gap: 10px; }
+    .octobus-logo { width: 46px; height: auto; display: block; flex: 0 0 auto; }
+    header h1 { margin: 0; font-size: 22px; }
+    header p { margin: 3px 0 0 56px; color: #5b6472; font-size: 14px; }
     .toolbar { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; padding: 14px 20px; background: #ffffff; border-bottom: 1px solid #d8dee7; }
     .field { display: flex; flex-direction: column; gap: 5px; min-width: 280px; }
     label { font-size: 12px; font-weight: 700; color: #5b6472; }
@@ -27,7 +29,10 @@
 </head>
 <body>
   <header>
-    <h1>Octobus · Tel Aviv Deviation Examples</h1>
+    <div class="title-row">
+      <img class="octobus-logo" src="octobus_logo.svg" alt="Octobus">
+      <h1>Octobus · Tel Aviv Deviation Examples</h1>
+    </div>
     <p>Curated GeoJSON outputs from successful deviation-planner runs.</p>
   </header>
   <div class="toolbar">
