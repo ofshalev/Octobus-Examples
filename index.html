@@ -22,7 +22,7 @@
     .legend-row { display: flex; align-items: center; gap: 7px; margin: 3px 0; }
     .legend-line { width: 24px; border-top: 4px solid; }
     .ring-marker { background: transparent; border: 0; }
-    .ring-marker svg { display: block; }
+    .ring-marker svg { display: block; overflow: visible; }
   </style>
 </head>
 <body>
@@ -86,10 +86,33 @@
       };
     }
 
+    function escapeXml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&apos;");
+    }
+
     function pointToLayer(feature, latlng) {
       const properties = feature.properties || {};
       const color = stopColors[properties.type] || properties["marker-color"] || properties.stroke || "#0f6fff";
-      const html = `<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="#fff" stroke="${color}" stroke-width="3"/></svg>`;
+      const centerFill = properties["marker-fill"] || "#ffffff";
+      const glyph = properties["marker-glyph"] ? escapeXml(properties["marker-glyph"]) : "";
+
+      let centerContent;
+      if (glyph) {
+        centerContent = `<text x="8" y="10.6" text-anchor="middle" font-size="7" font-family="Arial, sans-serif" font-weight="700" fill="${color}">${glyph}</text>`;
+      } else {
+        centerContent = `<circle cx="8" cy="8" r="2.2" fill="${color}"/>`;
+      }
+
+      const html = `
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="8" cy="8" r="5.5" fill="${centerFill}" stroke="${color}" stroke-width="3"/>
+          ${centerContent}
+        </svg>`;
 
       return L.marker(latlng, {
         icon: L.divIcon({
