@@ -21,6 +21,9 @@
     .legend { background: rgba(255,255,255,.94); border: 1px solid #d8dee7; border-radius: 6px; padding: 8px 10px; line-height: 1.45; font-size: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
     .legend-row { display: flex; align-items: center; gap: 7px; margin: 3px 0; }
     .legend-line { width: 24px; border-top: 4px solid; }
+    .bus-marker { background: transparent; border: 0; }
+    .bus-marker svg { display: block; overflow: visible; }
+    .bus-marker:focus, .bus-marker:focus-visible { outline: none; }
   </style>
 </head>
 <body>
@@ -45,61 +48,122 @@
       { route: "142", direction: "0", generated: "2026-08-19 08:13:03", file: "tel_aviv/route_142_direction_0_approved_deviation_found_2026-08-19_08-13-03.geojson" },
       { route: "161", direction: "0", generated: "2026-08-19 08:21:49", file: "tel_aviv/route_161_direction_0_approved_deviation_found_2026-08-19_08-21-49.geojson" }
     ];
+
     const select = document.getElementById("example-select");
     const status = document.getElementById("status");
+
     for (const example of examples) {
       const option = document.createElement("option");
       option.value = example.file;
       option.textContent = `Route ${example.route} · direction ${example.direction} · ${example.generated}`;
       select.appendChild(option);
     }
+
     const map = L.map("map", { zoomControl: true }).setView([32.075, 34.78], 13);
+
     L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
       subdomains: "abcd",
       maxZoom: 20,
       attribution: "&copy; OpenStreetMap contributors &copy; CARTO"
     }).addTo(map);
+
     let currentLayer = null;
+
     function styleFeature(feature) {
       const properties = feature.properties || {};
-      return { color: properties.stroke || "#0f6fff", weight: properties["stroke-width"] || 3, opacity: properties["stroke-opacity"] ?? 0.9 };
+      return {
+        color: properties.stroke || "#0f6fff",
+        weight: properties["stroke-width"] || 3,
+        opacity: properties["stroke-opacity"] ?? 0.9
+      };
     }
+
     function pointToLayer(feature, latlng) {
       const properties = feature.properties || {};
       const color = properties["marker-color"] || properties.stroke || "#0f6fff";
-      return L.circleMarker(latlng, { radius: 6, color, weight: 2, fillColor: color, fillOpacity: 0.9 });
+      const symbol = properties["marker-symbol"] || "bus";
+
+      if (symbol === "bus") {
+        const html = `
+          <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+            <circle cx="10" cy="10" r="9" fill="${color}"></circle>
+            <path d="M6.1 5.2h7.8c.9 0 1.6.7 1.6 1.6v6.1c0 .7-.5 1.3-1.2 1.5v1.1a.9.9 0 0 1-1.8 0v-1H7.5v1a.9.9 0 0 1-1.8 0v-1.1c-.7-.2-1.2-.8-1.2-1.5V6.8c0-.9.7-1.6 1.6-1.6Zm.1 1.8v3.7h7.6V7H6.2Zm.5 5.1a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm6.6 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z" fill="#fff"></path>
+          </svg>`;
+
+        return L.marker(latlng, {
+          icon: L.divIcon({
+            className: "bus-marker",
+            html,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10],
+            popupAnchor: [0, -10]
+          }),
+          keyboard: false
+        });
+      }
+
+      return L.circleMarker(latlng, {
+        radius: 5,
+        stroke: false,
+        fillColor: color,
+        fillOpacity: 1
+      });
     }
+
     function popupContent(feature) {
       const properties = feature.properties || {};
-      const entries = Object.entries(properties).filter(([, value]) => value !== null && value !== undefined && value !== "").slice(0, 12);
+      const entries = Object.entries(properties)
+        .filter(([, value]) => value !== null && value !== undefined && value !== "")
+        .slice(0, 12);
+
       if (!entries.length) return "Octobus GeoJSON feature";
       return entries.map(([key, value]) => `<strong>${key}</strong>: ${String(value)}`).join("<br>");
     }
+
     async function loadExample(filename) {
       status.textContent = "Loading GeoJSON…";
+
       try {
         const response = await fetch(filename, { cache: "no-store" });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
         const geojson = await response.json();
+
         if (currentLayer) map.removeLayer(currentLayer);
-        currentLayer = L.geoJSON(geojson, { style: styleFeature, pointToLayer, onEachFeature(feature, layer) { layer.bindPopup(popupContent(feature)); } }).addTo(map);
+
+        currentLayer = L.geoJSON(geojson, {
+          style: styleFeature,
+          pointToLayer,
+          onEachFeature(feature, layer) {
+            layer.bindPopup(popupContent(feature));
+          }
+        }).addTo(map);
+
         const bounds = currentLayer.getBounds();
         if (bounds.isValid()) map.fitBounds(bounds, { padding: [24, 24] });
+
         const selected = examples.find(example => example.file === filename);
-        status.textContent = selected ? `Showing route ${selected.route}, direction ${selected.direction}` : "GeoJSON loaded";
+        status.textContent = selected
+          ? `Showing route ${selected.route}, direction ${selected.direction}`
+          : "GeoJSON loaded";
       } catch (error) {
         console.error(error);
         status.textContent = "Could not load this GeoJSON file.";
       }
     }
+
     select.addEventListener("change", () => loadExample(select.value));
+
     const legend = L.control({ position: "bottomright" });
     legend.onAdd = function () {
       const div = L.DomUtil.create("div", "legend");
-      div.innerHTML = `<div class="legend-row"><span class="legend-line" style="border-color:#1f2a7a"></span><span>Original route</span></div><div class="legend-row"><span class="legend-line" style="border-color:#00bcd4"></span><span>Deviation path</span></div>`;
+      div.innerHTML = `
+        <div class="legend-row"><span class="legend-line" style="border-color:#1f2a7a"></span><span>Original route</span></div>
+        <div class="legend-row"><span class="legend-line" style="border-color:#00bcd4"></span><span>Deviation path</span></div>`;
       return div;
     };
     legend.addTo(map);
+
     loadExample(examples[0].file);
   </script>
 </body>
