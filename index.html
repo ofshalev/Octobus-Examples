@@ -46,6 +46,15 @@
       { route: "161", direction: "0", generated: "2026-08-19 08:21:49", file: "tel_aviv/route_161_direction_0_approved_deviation_found_2026-08-19_08-21-49.geojson" }
     ];
 
+    const stopColors = {
+      original_route_stop: "#2ca02c",
+      cancelled_stop: "#ff0000",
+      new_stop: "#1f9ed6",
+      reported_block_stop: "#ff8800",
+      deviate_from_stop: "#8000ff",
+      deviate_to_stop: "#8000ff"
+    };
+
     const select = document.getElementById("example-select");
     const status = document.getElementById("status");
 
@@ -77,7 +86,7 @@
 
     function pointToLayer(feature, latlng) {
       const properties = feature.properties || {};
-      const color = properties["marker-color"] || properties.stroke || "#0f6fff";
+      const color = stopColors[properties.type] || properties["marker-color"] || properties.stroke || "#0f6fff";
 
       return L.circleMarker(latlng, {
         radius: 6,
