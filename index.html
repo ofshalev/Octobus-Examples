@@ -117,11 +117,21 @@
     const select = document.getElementById("example-select");
     const status = document.getElementById("status");
 
+    function exampleLabel(example) {
+      const destinationLabel = example.destination ? ` → ${example.destination}` : "";
+      const scenarioLabel = example.scenario > 1 ? ` · scenario ${example.scenario}` : "";
+      return `Route ${example.route}${destinationLabel}${scenarioLabel} · ${example.generated}`;
+    }
+
+    function updateExampleOption(example) {
+      const option = Array.from(select.options).find(item => item.value === example.file);
+      if (option) option.textContent = exampleLabel(example);
+    }
+
     for (const example of examples) {
       const option = document.createElement("option");
       option.value = example.file;
-      const scenarioLabel = example.scenario > 1 ? ` · scenario ${example.scenario}` : "";
-      option.textContent = `Route ${example.route} · direction ${example.direction}${scenarioLabel} · ${example.generated}`;
+      option.textContent = exampleLabel(example);
       select.appendChild(option);
     }
 
@@ -206,6 +216,7 @@
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const geojson = await response.json();
+        const metadata = geojson.properties || geojson.metadata || {};
 
         if (currentLayer) map.removeLayer(currentLayer);
 
@@ -221,9 +232,19 @@
         if (bounds.isValid()) map.fitBounds(bounds, { padding: [24, 24] });
 
         const selected = examples.find(example => example.file === filename);
-        status.textContent = selected
-          ? `Showing route ${selected.route}, direction ${selected.direction}`
-          : "GeoJSON loaded";
+        if (selected) {
+          const destination = String(metadata.destination || "").trim();
+          if (destination) {
+            selected.destination = destination;
+            updateExampleOption(selected);
+          }
+
+          status.textContent = selected.destination
+            ? `Showing route ${selected.route} → ${selected.destination}`
+            : `Showing route ${selected.route}`;
+        } else {
+          status.textContent = "GeoJSON loaded";
+        }
       } catch (error) {
         console.error(error);
         status.textContent = "Could not load this GeoJSON file.";
