@@ -115,7 +115,7 @@
       }
 
       const html = `
-        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+        <svg width="24" height="24" viewBox="0 0 16 16" aria-hidden="true">
           <circle cx="8" cy="8" r="5.5" fill="${centerFill}" stroke="${color}" stroke-width="3"/>
           ${centerContent}
         </svg>`;
@@ -124,9 +124,9 @@
         icon: L.divIcon({
           className: "ring-marker",
           html,
-          iconSize: [16, 16],
-          iconAnchor: [8, 8],
-          popupAnchor: [0, -8]
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
+          popupAnchor: [0, -12]
         }),
         keyboard: false
       });
