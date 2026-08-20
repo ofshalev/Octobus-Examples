@@ -134,12 +134,16 @@
 
     function popupContent(feature) {
       const properties = feature.properties || {};
-      const entries = Object.entries(properties)
-        .filter(([, value]) => value !== null && value !== undefined && value !== "")
-        .slice(0, 12);
+      const stopName = properties.stop_name;
+      const stopCode = properties.stop_code;
 
-      if (!entries.length) return "Octobus GeoJSON feature";
-      return entries.map(([key, value]) => `<strong>${key}</strong>: ${String(value)}`).join("<br>");
+      if (stopName || stopCode) {
+        const name = stopName ? escapeXml(stopName) : "";
+        const code = stopCode ? escapeXml(stopCode) : "";
+        return `<div dir="rtl" style="text-align:right;">${name}${name && code ? "<br>" : ""}${code}</div>`;
+      }
+
+      return "Octobus GeoJSON feature";
     }
 
     async function loadExample(filename) {
