@@ -64,7 +64,6 @@ if(reliable && (crossing||departing) && (approached||closest<=75)){
  passedCount++;
  if(passedCount>=2){nextIndex++;closest=Infinity;approached=false;passedCount=0;atStop=false;atStopCount=0;arriveCount=0;render()}
 }else passedCount=0;
-}else passedCount=0;
 }
 $('start').onclick=()=>{if(!navigator.geolocation){$('error').textContent='דפדפן זה אינו תומך במיקום.';return}if(watch!==null)return;watch=navigator.geolocation.watchPosition(onFix,e=>{$('error').textContent='שגיאת מיקום: '+e.message;$('status').textContent='GPS לא זמין'}, {enableHighAccuracy:true,maximumAge:3000,timeout:15000});$('start').disabled=true;$('stop').disabled=false;$('status').textContent='מבקש הרשאת מיקום…'};
 $('stop').onclick=()=>{if(watch!==null)navigator.geolocation.clearWatch(watch);watch=null;$('start').disabled=false;$('stop').disabled=true;$('status').textContent='המעקב הופסק'};
