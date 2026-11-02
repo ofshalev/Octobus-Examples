@@ -4,7 +4,7 @@
 <section class="card hero" id="hero"><div class="stop-signal" id="stopSignal" role="status" aria-label="עצור — התחנה הבאה היא תחנת היעד" hidden>עצור</div><div class="eyebrow" id="eyebrow">התחנה הבאה לפי מיקום הטלפון</div><div class="next" id="next">ממתין להפעלת מיקום</div><div class="code" id="nextcode"></div><div class="nearby" id="nearby"></div><div class="subnext" id="subnext"></div><div style="margin-top:16px"><span class="pill" id="status">לא מחובר ל-GPS</span></div><div class="progress"><div id="progress"></div></div><div class="row small muted"><span id="position">טרם התקבל מיקום</span><span id="count">0 מתוך 10 מקטעים</span></div></section>
 <section class="card"><h2>מעקב נסיעה</h2><div class="buttons"><button id="start">▶ התחל מעקב GPS</button><button class="secondary" id="stop" disabled>■ עצור מעקב</button><button class="secondary" id="reset">↺ אפס נסיעה</button><button class="secondary" id="manual">התקדם תחנה (בדיקה)</button></div><p class="small muted" id="hint"></p><div class="error" id="error"></div></section>
 <section class="card"><h2>תחנות במסלול</h2><ol class="stops" id="stops"></ol></section>
-<section class="card"><details id="setup"><summary>הגדרת קואורדינטות GTFS (נדרש ל-GPS)</summary><p class="small muted">כדי לזהות תחנה אמיתית, נדרשות קואורדינטות של התחנות. בחר את הקובץ <b>stops.txt</b> מתיקיית ה-GTFS של Octobus. הקובץ נקרא מקומית בטלפון/מחשב ולא נשלח לשרת. הנתונים הרלוונטיים נשמרים בדפדפן.</p><label class="upload">📂 טען stops.txt<input id="file" type="file" accept=".txt,.csv,text/plain"></label><p id="loaded" class="small"></p><p class="small muted">השדות הדרושים: stop_code, stop_lat, stop_lon. טעינת נתוני GTFS חדשים מחליפה את הקואורדינטות הישנות.</p></details></section><div class="footer">גרסת ניסוי v0.8: שיפור זיהוי תחנה לאחר מעבר בפועל, ובחירת כיוון הלוך/חזור. מסתמכת על GPS של הטלפון ועל רצף תחנות קבוע, לא על זיהוי אוטובוס בזמן אמת. מיקום GPS עלול לדלג או להיות לא מדויק. יש לוודא את התחנה במציאות. לצורך שימוש ב-GPS נדרש לפתוח את הקובץ דרך HTTPS או localhost (בדפדפנים מסוימים גם file:// עובד). </div></main><script>
+<section class="card"><details id="setup"><summary>הגדרת קואורדינטות GTFS (נדרש ל-GPS)</summary><p class="small muted">כדי לזהות תחנה אמיתית, נדרשות קואורדינטות של התחנות. בחר את הקובץ <b>stops.txt</b> מתיקיית ה-GTFS של Octobus. הקובץ נקרא מקומית בטלפון/מחשב ולא נשלח לשרת. הנתונים הרלוונטיים נשמרים בדפדפן.</p><label class="upload">📂 טען stops.txt<input id="file" type="file" accept=".txt,.csv,text/plain"></label><p id="loaded" class="small"></p><p class="small muted">השדות הדרושים: stop_code, stop_lat, stop_lon. טעינת נתוני GTFS חדשים מחליפה את הקואורדינטות הישנות.</p></details></section><div class="footer">גרסת ניסוי v0.9: שיפור זיהוי תחנה לאחר מעבר בפועל, ובחירת כיוון הלוך/חזור. מסתמכת על GPS של הטלפון ועל רצף תחנות קבוע, לא על זיהוי אוטובוס בזמן אמת. מיקום GPS עלול לדלג או להיות לא מדויק. יש לוודא את התחנה במציאות. לצורך שימוש ב-GPS נדרש לפתוח את הקובץ דרך HTTPS או localhost (בדפדפנים מסוימים גם file:// עובד). </div></main><script>
 const journeys={
  outbound:{title:"שד׳ רוטשילד/בלפור ← רכבת סבידור",desc:"לכיוון בית רבקה",note:"עלייה: 21484 · ירידה: 21140",stops:[['21484','שד׳ רוטשילד/בלפור'],['21732','שד׳ רוטשילד/שיינקין'],['25591','הבימה/שד׳ רוטשילד'],['25607','דיזנגוף סנטר/שדרות בן ציון'],['20785','דיזנגוף סנטר/המלך ג׳ורג׳'],['20739','הנביאים/שמריהו לוין'],['21100','לונדון מיניסטור/שד׳ שאול המלך'],['25722','האופרה/שד׳ שאול המלך'],['23025','בית המשפט/שד׳ שאול המלך'],['21303','בית הדר דפנה/שד׳ שאול המלך'],['21140','ת. רכבת תל אביב סבידור/על פרשת דרכים']]},
  inbound:{title:"ארלוזורוב/מנחם בגין ← שד׳ רוטשילד/בלפור",desc:"לכיוון מסוף כרמלית · תחנות שונות מהכיוון הלוך",note:"לתשומת לב: קו 82 בכיוון חזור עובר בתחנה 20832, לא ב-21140. יעד: 25584 (לא 21484).",stops:[['20832','ת. רק״ל ארלוזורוב/דרך מנחם בגין'],['25732','בית הדר דפנה/שד׳ שאול המלך'],['21544','בית המשפט/שד׳ שאול המלך'],['21150','לונדון מיניסטור/שד׳ שאול המלך'],['21520','כיכר רבין/מלכי ישראל'],['25617','המלך ג׳ורג׳/זמנהוף'],['20784','דיזנגוף סנטר/המלך ג׳ורג׳'],['25608','דיזנגוף סנטר/שדרות בן ציון'],['25592','הבימה/שד׳ רוטשילד'],['25587','שד׳ רוטשילד/שיינקין'],['25584','שד׳ רוטשילד/בלפור']]}
@@ -76,7 +76,16 @@ if(nextIndex===stops.length-1){
  return;
 }
 // Exit the 20m core on the far side of the stop, after having entered it.
-const passed=reliable&&atStop&&inside20&&d>20&&t>1.02;
+const crossedStop=reliable&&atStop&&d>20&&t>1.04&&closest<=70;
+// Recovery if GPS missed the inner 20m radius or the road bends away from
+// the straight-line segment: compare to the FOLLOWING stop as well.
+// Only advance once the next stop is distinctly closer and itself nearby.
+const following=coords[stops[nextIndex+1].code];
+const nextDistance=dist(p,following);
+const clearlyAhead=reliable&&(atStop||closest<=70)&&d>=85&&
+ nextDistance<=150&&nextDistance+65<d;
+// Two reliable fixes guard against a single GPS jump.
+const passed=(inside20&&crossedStop)||clearlyAhead||crossedStop;
 passedCount=passed?passedCount+1:0;
 if(passedCount>=2){
  nextIndex++;closest=Infinity;approached=false;passedCount=0;
