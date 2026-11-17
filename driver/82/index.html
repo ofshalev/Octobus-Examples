@@ -48,7 +48,9 @@ function update(){
  actions.sort((a,b)=>a.at-b.at||(a.kind==='stop'?-1:1));
  const describe=a=>{
    const d=Math.max(0,Math.round(a.at-position.along));
-   return a.kind==='stop'?'עצור בתחנה '+a.name+' בעוד '+d+' מטר':'פנה '+a.direction+' בעוד '+d+' מטר (משוער)';
+   const symbol=a.kind==='stop'?'@':a.direction==='ימינה'?'↱':'↰';
+   const name=a.kind==='stop'?a.name:(a.name||'פנייה '+a.direction);
+   return symbol+' '+name+(d<50?'':' · '+d+' מטר');
  };
  show(actions[0]?describe(actions[0]):'סוף המסלול',actions[1]?describe(actions[1]):'');
 }
