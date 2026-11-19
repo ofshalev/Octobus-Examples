@@ -67,7 +67,37 @@ el('simstart').onclick=()=>{if(!route){el('simstatus').textContent='טען stops
 el('simpause').onclick=stopSimulation;
 el('simreset').onclick=()=>{stopSimulation();sim=false;simIndex=0;el('simslider').value=0;if(simBus){map.removeLayer(simBus);simBus=null}el('simstatus').textContent='סימולציה אופסה';update()};
 el('simslider').oninput=e=>{stopSimulation();if(route)moveSimulation(Math.round(+e.target.value/1000*(route.length-1)))};
-function onPos(p){const current=[p.coords.latitude,p.coords.longitude];const speed=p.coords.speed;const reported=p.coords.heading;const reliableSpeed=speed===null||speed>=1.5;if(reliableSpeed&&Number.isFinite(reported)&&reported!==null){lastHeading=normalizeHeading(reported);lastHeadingPosition=current}else if(lastHeadingPosition&&meters(lastHeadingPosition,current)>=12&&(speed===null||speed>=1.5)&&p.coords.accuracy<=35){lastHeading=gpsBearing(lastHeadingPosition,current);lastHeadingPosition=current}else if(!lastHeadingPosition&&p.coords.accuracy<=35){lastHeadingPosition=current}last=current;applyOrientation();if(!bus){bus=L.marker(last,{icon:L.divIcon({html:'🚌',className:'bus',iconSize:[30,30]})}).addTo(map)}else bus.setLatLng(last);el('gps').textContent='GPS פעיל · דיוק משוער '+Math.round(p.coords.accuracy)+' מ׳';if(follow)map.panTo(last);update()}
+function onPos(p){
+  const current=[p.coords.latitude,p.coords.longitude];
+  const speed=p.coords.speed;
+  const reported=p.coords.heading;
+  const accuracy=p.coords.accuracy;
+  // Unknown speed is not proof of motion: freeze the bearing to prevent GPS drift.
+  const moving=Number.isFinite(speed)&&speed>=5/3.6;
+  const accurate=Number.isFinite(accuracy)&&accuracy<=35;
+  if(moving&&accurate){
+    let candidate=null;
+    if(Number.isFinite(reported)&&reported!==null){
+      candidate=normalizeHeading(reported);
+    }else if(lastHeadingPosition&&meters(lastHeadingPosition,current)>=12){
+      candidate=gpsBearing(lastHeadingPosition,current);
+    }
+    if(candidate!==null){
+      const difference=lastHeading===null?180:Math.abs(((candidate-lastHeading+540)%360)-180);
+      if(difference>=10){
+        lastHeading=candidate;
+        applyOrientation();
+      }
+    }
+    // Update the movement anchor only while speed and accuracy are trustworthy.
+    if(!lastHeadingPosition||meters(lastHeadingPosition,current)>=12)lastHeadingPosition=current;
+  }
+  last=current;
+  if(!bus){bus=L.marker(last,{icon:L.divIcon({html:'🚌',className:'bus',iconSize:[30,30]})}).addTo(map)}else bus.setLatLng(last);
+  el('gps').textContent='GPS פעיל · דיוק משוער '+Math.round(accuracy)+' מ׳';
+  if(follow)map.panTo(last);
+  update();
+}
 el('start').onclick=()=>{if(!window.isSecureContext){el('gps').textContent='נדרש HTTPS';return}if(watch!==null)return;el('gps').textContent='מבקש הרשאת מיקום...';watch=navigator.geolocation.watchPosition(onPos,e=>{el('gps').textContent='שגיאת GPS: '+e.message},{enableHighAccuracy:true,maximumAge:1000,timeout:20000})};
 el('stop').onclick=()=>{if(watch!==null)navigator.geolocation.clearWatch(watch);watch=null;el('gps').textContent='GPS נעצר'};
 el('center').onclick=()=>{follow=true;if(last)map.setView(last,16)};
