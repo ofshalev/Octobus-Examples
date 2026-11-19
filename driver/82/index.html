@@ -27,7 +27,7 @@ journeys.route501={title:"501 · רכבת סבידור → מחלף הסירה �
 ]};
 let orientation='north',lastHeading=null,lastHeadingPosition=null,routeHeading=null,routeLock=null,routeCandidate=null,routeHits=0,routeTravelSign=0,travelAnchor=null,travelAnchorTime=0;
 let direction='outbound',coords={},shapeIndex={},shapeReady=false,route=null,watch=null,bus=null,last=null,follow=true,sim=false,simTimer=null,simIndex=0,simBus=null,routeCum=[],turns=[];
-const el=id=>document.getElementById(id),map=L.map('map',{rotate:true,bearing:0}).setView([32.075,34.785],13),layer=L.featureGroup().addTo(map);
+const el=id=>document.getElementById(id),map=L.map('map',{rotate:true,bearing:0,rotateControl:false}).setView([32.075,34.785],13),layer=L.featureGroup().addTo(map);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap contributors',maxZoom:19}).addTo(map);
 function stops(){return journeys[direction].stops}
 function normalizeHeading(h){return ((h%360)+360)%360}
