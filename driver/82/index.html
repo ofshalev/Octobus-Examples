@@ -118,11 +118,14 @@ function updateRouteHeading(p,speed,accuracy,reported,time){
 }
 function followBus(){
  if(!last)return;
- if(orientation!=='route'){map.panTo(last,{animate:false});return}
- // Put the bus below centre, leaving more of the route ahead visible.
- // panBy uses screen coordinates, so the offset stays correct when rotated.
- map.panTo(last,{animate:false});
- map.panBy([0,-Math.round(map.getSize().y*.18)],{animate:false});
+ const size=map.getSize();
+ const target=orientation==='route'?L.point(size.x*.5,size.y*.70):L.point(size.x*.5,size.y*.5);
+ // Measure the bus in the *rotated screen coordinate system*. A panTo
+ // followed by a fixed offset can drift after map rotation or resizing.
+ const actual=map.latLngToContainerPoint(last);
+ const shift=actual.subtract(target);
+ if(Math.abs(shift.x)>1||Math.abs(shift.y)>1)
+  map.panBy(shift,{animate:false});
 }
 
 function update(){
@@ -194,5 +197,5 @@ function onPos(p){
 el('start').onclick=()=>{if(!window.isSecureContext){el('gps').textContent='נדרש HTTPS';return}if(watch!==null)return;el('gps').textContent='מבקש הרשאת מיקום...';watch=navigator.geolocation.watchPosition(onPos,e=>{el('gps').textContent='שגיאת GPS: '+e.message},{enableHighAccuracy:true,maximumAge:1000,timeout:20000})};
 el('stop').onclick=()=>{if(watch!==null)navigator.geolocation.clearWatch(watch);watch=null;el('gps').textContent='GPS נעצר'};
 el('center').onclick=()=>{follow=true;if(last){map.setZoom(16);followBus()}};
-map.on('dragstart',()=>follow=false);render();
+map.on('dragstart',()=>follow=false);map.on('zoomend resize rotate',()=>{if(follow&&last)followBus()});render();
 </script></body></html>
