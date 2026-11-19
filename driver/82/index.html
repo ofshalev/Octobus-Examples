@@ -10,16 +10,16 @@ journeys.north910={title:"910 · סינמה סיטי גלילות ← מחלף �
 ]};
 // Route 18 toward Bat Yam, segment 20832 → 21520, from the 2026-11-16 GTFS snapshot.
 journeys.batyam18={title:"18 · ארלוזורוב/מנחם בגין → כיכר רבין",desc:"לכיוון בת ים",note:"מקטע 20832 עד 21520",stops:[['20832','ת.רק״ל ארלוזורוב/דרך מנחם בגין'],['25732','בית הדר דפנה/שד׳ שאול המלך'],['21238','בית המשפט/ויצמן'],['21173','ביה״ח איכילוב/שדרות דוד המלך'],['25872','רבנות תל אביב/שד׳ דוד המלך'],['25819','שד׳ דוד המלך/אבן גבירול'],['21520','כיכר רבין/מלכי ישראל']]};
-let orientation='north',lastHeading=null,lastHeadingPosition=null,routeHeading=null,routeLock=null,routeCandidate=null,routeHits=0;
+let orientation='north',lastHeading=null,lastHeadingPosition=null,routeHeading=null,routeLock=null,routeCandidate=null,routeHits=0,routeTravelSign=0,travelAnchor=null,travelAnchorTime=0;
 let direction='outbound',coords={},shapeIndex={},shapeReady=false,route=null,watch=null,bus=null,last=null,follow=true,sim=false,simTimer=null,simIndex=0,simBus=null,routeCum=[],turns=[];
 const el=id=>document.getElementById(id),map=L.map('map',{rotate:true,bearing:0}).setView([32.075,34.785],13),layer=L.featureGroup().addTo(map);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap contributors',maxZoom:19}).addTo(map);
 function stops(){return journeys[direction].stops}
 function normalizeHeading(h){return ((h%360)+360)%360}
 function applyOrientation(){if(typeof map.setBearing!=='function'){el('gps').textContent='סיבוב המפה אינו זמין בדפדפן זה';el('orientation').value='north';orientation='north';return}const h=orientation==='route'?routeHeading:orientation==='heading'?lastHeading:null;map.setBearing(h===null?0:h)}
-el('orientation').onchange=e=>{orientation=e.target.value;applyOrientation();if(orientation==='route'&&last)el('gps').textContent=route?'כיוון מסלול: ממתין להתאמה בתנועה':'יש לטעון ולהציג מסלול GTFS קודם'};
+el('orientation').onchange=e=>{orientation=e.target.value;applyOrientation();if(follow&&last)followBus();if(orientation==='route'&&last)el('gps').textContent=route?'כיוון מסלול: ממתין להתאמה בתנועה':'יש לטעון ולהציג מסלול GTFS קודם'};
 function gpsBearing(a,b){const p1=rad(a[0]),p2=rad(b[0]),dl=rad(b[1]-a[1]);const y=Math.sin(dl)*Math.cos(p2),x=Math.cos(p1)*Math.sin(p2)-Math.sin(p1)*Math.cos(p2)*Math.cos(dl);return normalizeHeading(Math.atan2(y,x)*180/Math.PI)}
-function render(){routeLock=null;routeCandidate=null;routeHits=0;routeHeading=null;stopSimulation();sim=false;if(simBus){map.removeLayer(simBus);simBus=null}routeCum=[];turns=[];el('title').textContent=journeys[direction].title;document.title='Octobus Driver · '+(direction==='north910'?'910':direction==='batyam18'?'18':'82');el('stops').innerHTML='';layer.clearLayers();route=null;stops().forEach(([code,name],i)=>{const li=document.createElement('li');li.textContent=(i+1)+'. '+name+' · '+code;el('stops').appendChild(li);if(coords[code])L.circleMarker(coords[code],{radius:7,color:'#0d5061',fillColor:'#3bcbac',fillOpacity:1}).bindPopup(name+' '+code).addTo(layer)});if(layer.getLayers().length)map.fitBounds(layer.getBounds().pad(.15));update()}
+function render(){routeLock=null;routeCandidate=null;routeHits=0;routeHeading=null;routeTravelSign=0;travelAnchor=null;travelAnchorTime=0;stopSimulation();sim=false;if(simBus){map.removeLayer(simBus);simBus=null}routeCum=[];turns=[];el('title').textContent=journeys[direction].title;document.title='Octobus Driver · '+(direction==='north910'?'910':direction==='batyam18'?'18':'82');el('stops').innerHTML='';layer.clearLayers();route=null;stops().forEach(([code,name],i)=>{const li=document.createElement('li');li.textContent=(i+1)+'. '+name+' · '+code;el('stops').appendChild(li);if(coords[code])L.circleMarker(coords[code],{radius:7,color:'#0d5061',fillColor:'#3bcbac',fillOpacity:1}).bindPopup(name+' '+code).addTo(layer)});if(layer.getLayers().length)map.fitBounds(layer.getBounds().pad(.15));update()}
 el('out').onclick=()=>{direction='outbound';render()};el('back').onclick=()=>{direction='inbound';render()};el('north910').onclick=()=>{direction='north910';render()};el('batyam18').onclick=()=>{direction='batyam18';render()};
 function parseCSV(text){const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/);const headers=lines.shift().split(',');return lines.filter(Boolean).map(line=>{const values=line.split(',');return Object.fromEntries(headers.map((k,i)=>[k,values[i]]))})}
 el('stopsfile').onchange=async e=>{const f=e.target.files[0];if(!f)return;const rows=parseCSV(await f.text());coords={};for(const r of rows){const a=+r.stop_lat,b=+r.stop_lon;if(r.stop_code&&Number.isFinite(a)&&Number.isFinite(b)&&a&&b)coords[r.stop_code]=[a,b]}render();el('status').textContent='נטענו קואורדינטות לתחנות'};
@@ -27,7 +27,7 @@ async function scan(file){shapeIndex={};shapeReady=false;const c=stops().map(s=>
 el('shapesfile').onchange=async e=>{const f=e.target.files[0];if(f)try{await scan(f)}catch(err){el('status').textContent=err.message}};
 function rad(x){return x*Math.PI/180}function meters(a,b){const p=rad(a[0]),q=rad(b[0]),d=rad(b[0]-a[0]),l=rad(b[1]-a[1]);return 12742000*Math.asin(Math.min(1,Math.sqrt(Math.sin(d/2)**2+Math.cos(p)*Math.cos(q)*Math.sin(l/2)**2)))}
 function closestIndex(p,points){let best=0,d=Infinity;for(let i=0;i<points.length;i++){const v=meters(p,points[i]);if(v<d){d=v;best=i}}return [best,d]}
-function selectShape(){if(!shapeReady){el('status').textContent='טען shapes.txt והמתן לסיום הסריקה';return}const requested=el('shapeid').value.trim();let choices=direction==='batyam18'?[[ '167698',shapeIndex['167698'] ]]:requested?[[requested,shapeIndex[requested]]]:Object.entries(shapeIndex),best=null,score=Infinity;const target=stops().map(s=>coords[s[0]]).filter(Boolean);for(const [id,raw] of choices){if(!raw||raw.length<10)continue;const points=raw.slice().sort((a,b)=>a[0]-b[0]).map(a=>[a[1],a[2]]);let sum=0,previous=-1;for(const p of target){const [i,d]=closestIndex(p,points);sum+=d;if(i<previous)sum+=3000;previous=i}if(sum<score){score=sum;best={id,points}}}if(!best){el('status').textContent='לא נמצאה צורה מתאימה';return}if(direction==='north910'&&score>10000){el('status').textContent='לא זוהתה צורת GTFS אמינה לקו 910. יש לאמת shape_id מול trips.txt; לא יוצגו הוראות מסלול.';return}route=best.points;routeLock=null;routeCandidate=null;routeHits=0;routeHeading=null;prepareRoute();L.polyline(route,{color:'#27b9eb',weight:6}).addTo(layer);map.fitBounds(layer.getBounds().pad(.12));el('status').textContent='GTFS shape_id: '+best.id+' · התאמה גאוגרפית בלבד; אינה מאמתת את הנסיעה';update()}
+function selectShape(){if(!shapeReady){el('status').textContent='טען shapes.txt והמתן לסיום הסריקה';return}const requested=el('shapeid').value.trim();let choices=direction==='batyam18'?[[ '167698',shapeIndex['167698'] ]]:requested?[[requested,shapeIndex[requested]]]:Object.entries(shapeIndex),best=null,score=Infinity;const target=stops().map(s=>coords[s[0]]).filter(Boolean);for(const [id,raw] of choices){if(!raw||raw.length<10)continue;const points=raw.slice().sort((a,b)=>a[0]-b[0]).map(a=>[a[1],a[2]]);let sum=0,previous=-1;for(const p of target){const [i,d]=closestIndex(p,points);sum+=d;if(i<previous)sum+=3000;previous=i}if(sum<score){score=sum;best={id,points}}}if(!best){el('status').textContent='לא נמצאה צורה מתאימה';return}if(direction==='north910'&&score>10000){el('status').textContent='לא זוהתה צורת GTFS אמינה לקו 910. יש לאמת shape_id מול trips.txt; לא יוצגו הוראות מסלול.';return}route=best.points;routeLock=null;routeCandidate=null;routeHits=0;routeHeading=null;routeTravelSign=0;travelAnchor=null;travelAnchorTime=0;prepareRoute();L.polyline(route,{color:'#27b9eb',weight:6}).addTo(layer);map.fitBounds(layer.getBounds().pad(.12));el('status').textContent='GTFS shape_id: '+best.id+' · התאמה גאוגרפית בלבד; אינה מאמתת את הנסיעה';update()}
 el('draw').onclick=selectShape;
 
 function bearing(a,b){const x=(b[1]-a[1])*Math.cos((a[0]+b[0])*Math.PI/360),y=b[0]-a[0];return Math.atan2(x,y)*180/Math.PI}
@@ -61,27 +61,55 @@ function pointAtDistance(d){
  const i=lo,span=routeCum[i]-routeCum[i-1],t=span?(d-routeCum[i-1])/span:0;
  return [route[i-1][0]+t*(route[i][0]-route[i-1][0]),route[i-1][1]+t*(route[i][1]-route[i-1][1])];
 }
-function updateRouteHeading(p,speed,accuracy){
+function angleDifference(a,b){return Math.abs(((a-b+540)%360)-180)}
+function updateRouteHeading(p,speed,accuracy,reported,time){
  if(!route||!Number.isFinite(accuracy)||accuracy>30)return;
  const match=routeMatch(p);
  if(!match||match.off>Math.max(12,accuracy+5)){routeCandidate=null;routeHits=0;return}
- // While stationary, preserve the last matched direction and progress.
+ // No orientation changes from stationary GPS drift.
  if(!Number.isFinite(speed)||speed<5/3.6)return;
- if(routeLock&&match.along<routeLock.along-18)return;
  if(!routeCandidate||Math.abs(match.along-routeCandidate.along)>45){
   routeCandidate=match;routeHits=1;return;
  }
- routeHits++;
- routeCandidate=match;
+ routeHits++;routeCandidate=match;
  if(routeHits<3)return;
- routeLock=match;
  const a=pointAtDistance(Math.max(0,match.along-8));
  const b=pointAtDistance(Math.min(routeCum[routeCum.length-1],match.along+35));
  if(!a||!b||meters(a,b)<8)return;
- const candidate=gpsBearing(a,b);
- const delta=routeHeading===null?180:Math.abs(((candidate-routeHeading+540)%360)-180);
- if(delta>=7){routeHeading=candidate;if(orientation==='route')applyOrientation()}
+ const forward=gpsBearing(a,b);
+ // Use actual movement to establish whether the shape is traversed forward
+ // or backward. A GPS heading is accepted only if it roughly agrees with
+ // one of the two possible directions along the road.
+ let observed=Number.isFinite(reported)&&reported!==null?normalizeHeading(reported):null;
+ if(travelAnchor&&meters(travelAnchor,p)>=18&&time>travelAnchorTime){
+  const displacement=gpsBearing(travelAnchor,p);
+  if(observed===null||angleDifference(observed,displacement)<40)observed=displacement;
+  travelAnchor=p;travelAnchorTime=time;
+ }else if(!travelAnchor){travelAnchor=p;travelAnchorTime=time}
+ if(routeTravelSign===0){
+  if(observed===null)return;
+  const difference=angleDifference(observed,forward);
+  if(difference>55&&difference<125)return; // ambiguous crossing or noisy GPS
+  routeTravelSign=difference>=125?-1:1;
+ }
+ if(routeLock&&Math.abs(match.along-routeLock.along)>120)return;
+ if(routeLock&&(match.along-routeLock.along)*routeTravelSign < -18)return;
+ routeLock=match;
+ const candidate=normalizeHeading(forward+(routeTravelSign<0?180:0));
+ if(routeHeading===null||angleDifference(candidate,routeHeading)>=7){
+  routeHeading=candidate;
+  if(orientation==='route')applyOrientation();
+ }
 }
+function followBus(){
+ if(!last)return;
+ if(orientation!=='route'){map.panTo(last,{animate:false});return}
+ // Put the bus below centre, leaving more of the route ahead visible.
+ // panBy uses screen coordinates, so the offset stays correct when rotated.
+ map.panTo(last,{animate:false});
+ map.panBy([0,-Math.round(map.getSize().y*.18)],{animate:false});
+}
+
 function update(){
  const primary=el('next'),secondary=el('following');
  const show=(first,second)=>{primary.textContent=first;secondary.textContent=second||'';secondary.style.display=second?'block':'none'};
@@ -142,14 +170,14 @@ function onPos(p){
     if(!lastHeadingPosition||meters(lastHeadingPosition,current)>=12)lastHeadingPosition=current;
   }
   last=current;
-  if(orientation==='route')updateRouteHeading(current,speed,accuracy);
+  if(orientation==='route')updateRouteHeading(current,speed,accuracy,reported,p.timestamp||Date.now());
   if(!bus){bus=L.marker(last,{icon:L.divIcon({html:'🚌',className:'bus',iconSize:[30,30]})}).addTo(map)}else bus.setLatLng(last);
   el('gps').textContent='GPS פעיל · דיוק משוער '+Math.round(accuracy)+' מ׳'+(orientation==='route'?(routeHeading===null?' · ממתין להתאמה לתוואי':' · כיוון לפי תוואי GTFS'):'');
-  if(follow)map.panTo(last);
+  if(follow)followBus();
   update();
 }
 el('start').onclick=()=>{if(!window.isSecureContext){el('gps').textContent='נדרש HTTPS';return}if(watch!==null)return;el('gps').textContent='מבקש הרשאת מיקום...';watch=navigator.geolocation.watchPosition(onPos,e=>{el('gps').textContent='שגיאת GPS: '+e.message},{enableHighAccuracy:true,maximumAge:1000,timeout:20000})};
 el('stop').onclick=()=>{if(watch!==null)navigator.geolocation.clearWatch(watch);watch=null;el('gps').textContent='GPS נעצר'};
-el('center').onclick=()=>{follow=true;if(last)map.setView(last,16)};
+el('center').onclick=()=>{follow=true;if(last){map.setZoom(16);followBus()}};
 map.on('dragstart',()=>follow=false);render();
 </script></body></html>
