@@ -40,7 +40,7 @@ journeys.route501back={title:"501 · מחלף הסירה לדרום → רכבת
  ['20348','דרך נמיר/ז׳בוטינסקי'],
  ['20349','ת. רכבת תל אביב - סבידור/דרך נמיר']
 ]};
-let orientation='north',lastHeading=null,lastHeadingPosition=null,routeHeading=null,routeLock=null,routeCandidate=null,routeHits=0,routeTravelSign=0,travelAnchor=null,travelAnchorTime=0;
+let orientation='north',lastHeading=null,lastHeadingPosition=null,routeHeading=null,routeLock=null,routeCandidate=null,routeHits=0,routeTravelSign=0,travelAnchor=null,travelAnchorTime=0,routeMotionAnchor=null,routeDirectionVotes=0,routeHeadingConfidence=false,centering=false;
 let direction='outbound',coords={},shapeIndex={},shapeReady=false,route=null,watch=null,bus=null,last=null,follow=true,sim=false,simTimer=null,simIndex=0,simBus=null,routeCum=[],turns=[];
 const el=id=>document.getElementById(id),map=L.map('map',{rotate:true,bearing:0,rotateControl:false}).setView([32.075,34.785],13),layer=L.featureGroup().addTo(map);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap contributors',maxZoom:19}).addTo(map);
@@ -49,7 +49,7 @@ function normalizeHeading(h){return ((h%360)+360)%360}
 function applyOrientation(){if(typeof map.setBearing!=='function'){el('gps').textContent='סיבוב המפה אינו זמין בדפדפן זה';el('orientation').value='north';orientation='north';return}const h=orientation==='route'?routeHeading:orientation==='heading'?lastHeading:null;map.setBearing(h===null?0:h)}
 el('orientation').onchange=e=>{orientation=e.target.value;applyOrientation();if(follow&&last)followBus();if(orientation==='route'&&last)el('gps').textContent=route?'כיוון מסלול: ממתין להתאמה בתנועה':'יש לטעון ולהציג מסלול GTFS קודם'};
 function gpsBearing(a,b){const p1=rad(a[0]),p2=rad(b[0]),dl=rad(b[1]-a[1]);const y=Math.sin(dl)*Math.cos(p2),x=Math.cos(p1)*Math.sin(p2)-Math.sin(p1)*Math.cos(p2)*Math.cos(dl);return normalizeHeading(Math.atan2(y,x)*180/Math.PI)}
-function render(){routeLock=null;routeCandidate=null;routeHits=0;routeHeading=null;routeTravelSign=0;travelAnchor=null;travelAnchorTime=0;stopSimulation();sim=false;if(simBus){map.removeLayer(simBus);simBus=null}routeCum=[];turns=[];el('title').textContent=journeys[direction].title;document.title='Octobus Driver · '+(direction==='north910'?'910':direction==='batyam18'?'18':direction==='route501'||direction==='route501back'?'501':'82');el('stops').innerHTML='';layer.clearLayers();route=null;stops().forEach(([code,name],i)=>{const li=document.createElement('li');li.textContent=(i+1)+'. '+name+' · '+code;el('stops').appendChild(li);if(coords[code])L.circleMarker(coords[code],{radius:7,color:'#0d5061',fillColor:'#3bcbac',fillOpacity:1}).bindPopup(name+' '+code).addTo(layer)});if(layer.getLayers().length)map.fitBounds(layer.getBounds().pad(.15));update()}
+function render(){routeLock=null;routeCandidate=null;routeHits=0;routeHeading=null;routeTravelSign=0;travelAnchor=null;travelAnchorTime=0;routeMotionAnchor=null;routeDirectionVotes=0;routeHeadingConfidence=false;routeMotionAnchor=null;routeDirectionVotes=0;routeHeadingConfidence=false;stopSimulation();sim=false;if(simBus){map.removeLayer(simBus);simBus=null}routeCum=[];turns=[];el('title').textContent=journeys[direction].title;document.title='Octobus Driver · '+(direction==='north910'?'910':direction==='batyam18'?'18':direction==='route501'||direction==='route501back'?'501':'82');el('stops').innerHTML='';layer.clearLayers();route=null;stops().forEach(([code,name],i)=>{const li=document.createElement('li');li.textContent=(i+1)+'. '+name+' · '+code;el('stops').appendChild(li);if(coords[code])L.circleMarker(coords[code],{radius:7,color:'#0d5061',fillColor:'#3bcbac',fillOpacity:1}).bindPopup(name+' '+code).addTo(layer)});if(layer.getLayers().length)map.fitBounds(layer.getBounds().pad(.15));update()}
 el('out').onclick=()=>{direction='outbound';render()};el('back').onclick=()=>{direction='inbound';render()};el('north910').onclick=()=>{direction='north910';render()};el('batyam18').onclick=()=>{direction='batyam18';render()};el('route501').onclick=()=>{direction='route501';render()};el('route501back').onclick=()=>{direction='route501back';render()};
 function parseCSV(text){const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/);const headers=lines.shift().split(',');return lines.filter(Boolean).map(line=>{const values=line.split(',');return Object.fromEntries(headers.map((k,i)=>[k,values[i]]))})}
 el('stopsfile').onchange=async e=>{const f=e.target.files[0];if(!f)return;const rows=parseCSV(await f.text());coords={};for(const r of rows){const a=+r.stop_lat,b=+r.stop_lon;if(r.stop_code&&Number.isFinite(a)&&Number.isFinite(b)&&a&&b)coords[r.stop_code]=[a,b]}render();el('status').textContent='נטענו קואורדינטות לתחנות'};
@@ -92,55 +92,62 @@ function pointAtDistance(d){
  return [route[i-1][0]+t*(route[i][0]-route[i-1][0]),route[i-1][1]+t*(route[i][1]-route[i-1][1])];
 }
 function angleDifference(a,b){return Math.abs(((a-b+540)%360)-180)}
+// Direction is established from actual progression along the shape, not from
+// one potentially noisy GPS heading. The latter is used only as a cross-check.
 function updateRouteHeading(p,speed,accuracy,reported,time){
  if(!route||!Number.isFinite(accuracy)||accuracy>30)return;
  const match=routeMatch(p);
  if(!match||match.off>Math.max(12,accuracy+5)){routeCandidate=null;routeHits=0;return}
- // No orientation changes from stationary GPS drift.
  if(!Number.isFinite(speed)||speed<5/3.6)return;
- if(!routeCandidate||Math.abs(match.along-routeCandidate.along)>45){
-  routeCandidate=match;routeHits=1;return;
+ if(!routeMotionAnchor){routeMotionAnchor={p,along:match.along,time};return}
+ const travelled=meters(routeMotionAnchor.p,p);
+ if(travelled>=20&&time>routeMotionAnchor.time){
+  const advance=match.along-routeMotionAnchor.along;
+  const gpsDirection=gpsBearing(routeMotionAnchor.p,p);
+  const first=pointAtDistance(Math.max(0,match.along-8));
+  const next=pointAtDistance(Math.min(routeCum[routeCum.length-1],match.along+35));
+  if(first&&next&&meters(first,next)>8&&Math.abs(advance)>=12){
+   const forward=gpsBearing(first,next);
+   const sign=advance>0?1:-1;
+   const proposed=normalizeHeading(forward+(sign<0?180:0));
+   // Reject jumps caused by snapping to a crossing or a parallel street.
+   if(Math.abs(advance)<=Math.max(110,travelled*2.5)&&angleDifference(gpsDirection,proposed)<=55){
+    routeDirectionVotes=routeTravelSign===sign?Math.min(4,routeDirectionVotes+1):1;
+    routeTravelSign=sign;
+    if(routeDirectionVotes>=2)routeHeadingConfidence=true;
+   }
+  }
+  routeMotionAnchor={p,along:match.along,time};
  }
- routeHits++;routeCandidate=match;
- if(routeHits<3)return;
- const a=pointAtDistance(Math.max(0,match.along-8));
- const b=pointAtDistance(Math.min(routeCum[routeCum.length-1],match.along+35));
- if(!a||!b||meters(a,b)<8)return;
- const forward=gpsBearing(a,b);
- // Use actual movement to establish whether the shape is traversed forward
- // or backward. A GPS heading is accepted only if it roughly agrees with
- // one of the two possible directions along the road.
- let observed=Number.isFinite(reported)&&reported!==null?normalizeHeading(reported):null;
- if(travelAnchor&&meters(travelAnchor,p)>=18&&time>travelAnchorTime){
-  const displacement=gpsBearing(travelAnchor,p);
-  if(observed===null||angleDifference(observed,displacement)<40)observed=displacement;
-  travelAnchor=p;travelAnchorTime=time;
- }else if(!travelAnchor){travelAnchor=p;travelAnchorTime=time}
- if(routeTravelSign===0){
-  if(observed===null)return;
-  const difference=angleDifference(observed,forward);
-  if(difference>55&&difference<125)return; // ambiguous crossing or noisy GPS
-  routeTravelSign=difference>=125?-1:1;
- }
+ // Do not show route-heading as confirmed until movement establishes direction.
+ if(!routeHeadingConfidence)return;
  if(routeLock&&Math.abs(match.along-routeLock.along)>120)return;
  if(routeLock&&(match.along-routeLock.along)*routeTravelSign < -18)return;
  routeLock=match;
- const candidate=normalizeHeading(forward+(routeTravelSign<0?180:0));
+ const a=pointAtDistance(Math.max(0,match.along-8));
+ const b=pointAtDistance(Math.min(routeCum[routeCum.length-1],match.along+35));
+ if(!a||!b||meters(a,b)<8)return;
+ const candidate=normalizeHeading(gpsBearing(a,b)+(routeTravelSign<0?180:0));
  if(routeHeading===null||angleDifference(candidate,routeHeading)>=7){
   routeHeading=candidate;
   if(orientation==='route')applyOrientation();
  }
 }
 function followBus(){
- if(!last)return;
- const size=map.getSize();
- const target=orientation==='route'?L.point(size.x*.5,size.y*.70):L.point(size.x*.5,size.y*.5);
- // Measure the bus in the *rotated screen coordinate system*. A panTo
- // followed by a fixed offset can drift after map rotation or resizing.
- const actual=map.latLngToContainerPoint(last);
- const shift=actual.subtract(target);
- if(Math.abs(shift.x)>1||Math.abs(shift.y)>1)
-  map.panBy(shift,{animate:false});
+ if(!last||centering||!map._loaded)return;
+ centering=true;
+ try{
+  const size=map.getSize();
+  const target=orientation==='route'?L.point(size.x*.5,size.y*.70):L.point(size.x*.5,size.y*.5);
+  // Recalculate in container coordinates after bearing changes. Two passes
+  // remove residual error from Leaflet.Rotate's transformed map pane.
+  for(let pass=0;pass<2;pass++){
+   const actual=map.latLngToContainerPoint(last);
+   const shift=actual.subtract(target);
+   if(Math.abs(shift.x)<=1&&Math.abs(shift.y)<=1)break;
+   map.panBy(shift,{animate:false});
+  }
+ }finally{centering=false}
 }
 
 function update(){
@@ -205,12 +212,12 @@ function onPos(p){
   last=current;
   if(orientation==='route')updateRouteHeading(current,speed,accuracy,reported,p.timestamp||Date.now());
   if(!bus){bus=L.marker(last,{icon:L.divIcon({html:'🚌',className:'bus',iconSize:[30,30]})}).addTo(map)}else bus.setLatLng(last);
-  el('gps').textContent='GPS פעיל · דיוק משוער '+Math.round(accuracy)+' מ׳'+(orientation==='route'?(routeHeading===null?' · ממתין להתאמה לתוואי':' · כיוון לפי תוואי GTFS'):'');
+  el('gps').textContent='GPS פעיל · דיוק משוער '+Math.round(accuracy)+' מ׳'+(orientation==='route'?(routeHeading===null?' · ממתין לאימות כיוון הנסיעה':' · כיוון לפי תוואי GTFS'):'')+(follow?'':' · מעקב מפה מושהה');
   if(follow)followBus();
   update();
 }
 el('start').onclick=()=>{if(!window.isSecureContext){el('gps').textContent='נדרש HTTPS';return}if(watch!==null)return;el('gps').textContent='מבקש הרשאת מיקום...';watch=navigator.geolocation.watchPosition(onPos,e=>{el('gps').textContent='שגיאת GPS: '+e.message},{enableHighAccuracy:true,maximumAge:1000,timeout:20000})};
 el('stop').onclick=()=>{if(watch!==null)navigator.geolocation.clearWatch(watch);watch=null;el('gps').textContent='GPS נעצר'};
 el('center').onclick=()=>{follow=true;if(last){map.setZoom(16);followBus()}};
-map.on('dragstart',()=>follow=false);map.on('zoomend resize rotate',()=>{if(follow&&last)followBus()});render();
+map.on('dragstart',()=>{follow=false;if(watch!==null)el('gps').textContent='מעקב מפה מושהה · לחץ מרכז על האוטובוס'});map.on('zoomend resize rotate',()=>{if(follow&&last)followBus()});render();
 </script></body></html>
