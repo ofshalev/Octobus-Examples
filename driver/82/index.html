@@ -22,6 +22,8 @@ function updateHeadingDebug(){
   'GPS accuracy: '+(Number.isFinite(debugAccuracy)?Math.round(debugAccuracy)+' m':'—'),
   'GTFS heading: '+fmt(routeHeading),
   'Map bearing: '+fmt(bearing),
+  'Heading-up error: '+(routeHeading!==null&&Number.isFinite(bearing)?fmt(normalizeHeading(bearing+routeHeading)):'—'),
+  'Bus screen offset: '+(last?(()=>{const p=map.latLngToContainerPoint(last),z=map.getSize();return Math.round(p.x-z.x/2)+', '+Math.round(p.y-z.y/2)+' px'})():'—'),
   'Shape direction: '+(routeTravelSign===1?'forward':routeTravelSign===-1?'reverse':'unknown'),
   'Direction confirmed: '+(routeHeadingConfidence?'yes':'no'),
   'Match offset: '+(match?Math.round(match.off)+' m':'—'),
@@ -30,7 +32,7 @@ function updateHeadingDebug(){
   'GPS update: '+(debugTime?new Date(debugTime).toLocaleTimeString('he-IL'):'—')
  ].join('\\n'.replace('\\n','\n'));
 }
-function applyOrientation(){if(typeof map.setBearing!=='function'){el('gps').textContent='סיבוב המפה אינו זמין בדפדפן זה';el('orientation').value='north';orientation='north';return}const h=orientation==='route'?routeHeading:orientation==='heading'?lastHeading:null;map.setBearing(h===null?0:h);updateHeadingDebug()}
+function applyOrientation(){if(typeof map.setBearing!=='function'){el('gps').textContent='סיבוב המפה אינו זמין בדפדפן זה';el('orientation').value='north';orientation='north';return}const h=orientation==='route'?routeHeading:orientation==='heading'?lastHeading:null;map.setBearing(h===null?0:normalizeHeading(-h));if(follow&&last)followBus();updateHeadingDebug()}
 el('orientation').onchange=e=>{orientation=e.target.value;applyOrientation();if(follow&&last)followBus();if(orientation==='route'&&last)el('gps').textContent=route?'כיוון מסלול: ממתין להתאמה בתנועה':'יש לטעון ולהציג מסלול GTFS קודם';updateHeadingDebug()};
 function gpsBearing(a,b){const p1=rad(a[0]),p2=rad(b[0]),dl=rad(b[1]-a[1]);const y=Math.sin(dl)*Math.cos(p2),x=Math.cos(p1)*Math.sin(p2)-Math.sin(p1)*Math.cos(p2)*Math.cos(dl);return normalizeHeading(Math.atan2(y,x)*180/Math.PI)}
 function render(){routeLock=null;routeCandidate=null;routeHits=0;routeHeading=null;routeTravelSign=0;travelAnchor=null;travelAnchorTime=0;routeMotionAnchor=null;routeDirectionVotes=0;routeHeadingConfidence=false;routeMotionAnchor=null;routeDirectionVotes=0;routeHeadingConfidence=false;stopSimulation();sim=false;if(simBus){map.removeLayer(simBus);simBus=null}routeCum=[];turns=[];el('title').textContent=journeys[direction].title;document.title='Octobus Driver · '+('82');el('stops').innerHTML='';layer.clearLayers();route=null;stops().forEach(([code,name],i)=>{const li=document.createElement('li');li.textContent=(i+1)+'. '+name+' · '+code;el('stops').appendChild(li);if(coords[code])L.circleMarker(coords[code],{radius:7,color:'#0d5061',fillColor:'#3bcbac',fillOpacity:1}).bindPopup(name+' '+code).addTo(layer)});if(layer.getLayers().length)map.fitBounds(layer.getBounds().pad(.15));update()}
@@ -121,9 +123,14 @@ function followBus(){
  if(!last||centering||!map._loaded)return;
  centering=true;
  try{
-  // Use the map's geographic centre directly. This is independent of
-  // rotation and avoids panBy offsets accumulating or being transformed.
-  map.setView(last,map.getZoom(),{animate:false});
+  // Centre geographically, then correct any remaining rotated-screen offset.
+  map.panTo(last,{animate:false});
+  const size=map.getSize(),target=L.point(size.x/2,size.y/2);
+  const actual=map.latLngToContainerPoint(last);
+  const offset=actual.subtract(target);
+  if(Math.abs(offset.x)>2||Math.abs(offset.y)>2){
+   map.panBy(offset,{animate:false});
+  }
  }finally{centering=false}
 }
 
