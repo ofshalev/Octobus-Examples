@@ -101,16 +101,9 @@ function followBus(){
  if(!last||centering||!map._loaded)return;
  centering=true;
  try{
-  const size=map.getSize();
-  const target=orientation==='route'?L.point(size.x*.5,size.y*.70):L.point(size.x*.5,size.y*.5);
-  // Recalculate in container coordinates after bearing changes. Two passes
-  // remove residual error from Leaflet.Rotate's transformed map pane.
-  for(let pass=0;pass<2;pass++){
-   const actual=map.latLngToContainerPoint(last);
-   const shift=actual.subtract(target);
-   if(Math.abs(shift.x)<=1&&Math.abs(shift.y)<=1)break;
-   map.panBy(shift,{animate:false});
-  }
+  // Use the map's geographic centre directly. This is independent of
+  // rotation and avoids panBy offsets accumulating or being transformed.
+  map.setView(last,map.getZoom(),{animate:false});
  }finally{centering=false}
 }
 
@@ -180,8 +173,8 @@ function onPos(p){
   if(follow)followBus();
   update();
 }
-el('start').onclick=()=>{if(!window.isSecureContext){el('gps').textContent='נדרש HTTPS';return}if(watch!==null)return;el('gps').textContent='מבקש הרשאת מיקום...';watch=navigator.geolocation.watchPosition(onPos,e=>{el('gps').textContent='שגיאת GPS: '+e.message},{enableHighAccuracy:true,maximumAge:1000,timeout:20000})};
+el('start').onclick=()=>{follow=true;if(last)followBus();if(!window.isSecureContext){el('gps').textContent='נדרש HTTPS';return}if(watch!==null)return;el('gps').textContent='מבקש הרשאת מיקום...';watch=navigator.geolocation.watchPosition(onPos,e=>{el('gps').textContent='שגיאת GPS: '+e.message},{enableHighAccuracy:true,maximumAge:1000,timeout:20000})};
 el('stop').onclick=()=>{if(watch!==null)navigator.geolocation.clearWatch(watch);watch=null;el('gps').textContent='GPS נעצר'};
 el('center').onclick=()=>{follow=true;if(last){map.setZoom(16);followBus()}};
-map.on('dragstart',()=>{follow=false;if(watch!==null)el('gps').textContent='מעקב מפה מושהה · לחץ מרכז על האוטובוס'});map.on('zoomend resize rotate',()=>{if(follow&&last)followBus()});render();
+map.on('dragstart',()=>{if(centering)return;follow=false;if(watch!==null)el('gps').textContent='מעקב מפה מושהה · לחץ מרכז על האוטובוס'});map.on('zoomend resize rotate',()=>{if(follow&&last)followBus()});render();
 </script></body></html>
