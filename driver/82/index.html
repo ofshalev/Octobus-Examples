@@ -39,7 +39,41 @@ function applyOrientation(){if(typeof map.setBearing!=='function'){el('gps').tex
 function gpsBearing(a,b){const p1=rad(a[0]),p2=rad(b[0]),dl=rad(b[1]-a[1]);const y=Math.sin(dl)*Math.cos(p2),x=Math.cos(p1)*Math.sin(p2)-Math.sin(p1)*Math.cos(p2)*Math.cos(dl);return normalizeHeading(Math.atan2(y,x)*180/Math.PI)}
 function render(){routeLock=null;routeCandidate=null;routeHits=0;routeHeading=null;routeTravelSign=0;travelAnchor=null;travelAnchorTime=0;routeMotionAnchor=null;routeDirectionVotes=0;routeHeadingConfidence=false;routeMotionAnchor=null;routeDirectionVotes=0;routeHeadingConfidence=false;stopSimulation();sim=false;if(simBus){map.removeLayer(simBus);simBus=null}routeCum=[];turns=[];el('title').textContent=journeys[direction].title;document.title='Octobus Driver · 142';el('stops').innerHTML='';layer.clearLayers();route=null;stops().forEach(([code,name],i)=>{const li=document.createElement('li');li.textContent=(i+1)+'. '+name+(code?' · '+code:' · קוד טרם אומת');el('stops').appendChild(li);if(coords[code])L.circleMarker(coords[code],{radius:7,color:'#0d5061',fillColor:'#3bcbac',fillOpacity:1}).bindPopup(name+' '+code).addTo(layer)});if(layer.getLayers().length)map.fitBounds(layer.getBounds().pad(.15));update()}
 
-el('out').onclick=()=>{direction='outbound';render()};el('back').onclick=()=>{direction='inbound';render()};
+el('out').onclick=()=>{direction='outbound';render();loadApprovedRoute()};el('back').onclick=()=>{direction='inbound';render();loadApprovedRoute()};
+// Route packages are published by Developer at driver/82/routes/<direction>.json.
+// Only packages explicitly approved and containing aligned stops + geometry are used.
+async function loadApprovedRoute(){
+ const selected=direction;
+ route=null;coords={};shapeReady=false;shapeIndex={};
+ el('status').textContent='טוען חבילת מסלול מאושרת...';
+ try{
+  const response=await fetch('./routes/'+selected+'.json',{cache:'no-store'});
+  if(!response.ok)throw Error('חבילת מסלול מאושרת טרם פורסמה');
+  const pkg=await response.json();
+  if(pkg.route_id!=='142'||pkg.direction!==selected||pkg.approved!==true||
+     !Array.isArray(pkg.stops)||pkg.stops.length<2||
+     !pkg.stops.every(x=>typeof x.code==='string'&&x.code&&typeof x.name==='string'&&
+       Number.isFinite(x.lat)&&Number.isFinite(x.lon))||
+     !Array.isArray(pkg.geometry)||pkg.geometry.length<10||
+     !pkg.geometry.every(x=>Array.isArray(x)&&x.length===2&&
+       Number.isFinite(x[0])&&Number.isFinite(x[1])))
+    throw Error('חבילת המסלול אינה מאומתת או אינה שלמה');
+  if(direction!==selected)return;
+  journeys[selected].stops=pkg.stops.map(x=>[x.code,x.name]);
+  coords=Object.fromEntries(pkg.stops.map(x=>[x.code,[x.lat,x.lon]]));
+  render();
+  route=pkg.geometry;
+  prepareRoute();
+  L.polyline(route,{color:'#27b9eb',weight:6}).addTo(layer);
+  map.fitBounds(layer.getBounds().pad(.12));
+  el('status').textContent='מסלול 142 מאושר · '+pkg.stops.length+' תחנות · '+(pkg.shape_id||'תוואי מאושר');
+  update();
+ }catch(error){
+  if(direction!==selected)return;
+  el('status').textContent=error.message+' · GPS זמין ללא הנחיות מסלול';
+  update();
+ }
+}
 function parseCSV(text){const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/);const headers=lines.shift().split(',');return lines.filter(Boolean).map(line=>{const values=line.split(',');return Object.fromEntries(headers.map((k,i)=>[k,values[i]]))})}
 el('stopsfile').onchange=async e=>{const f=e.target.files[0];if(!f)return;const rows=parseCSV(await f.text());coords={};for(const r of rows){const a=+r.stop_lat,b=+r.stop_lon;if(r.stop_code&&Number.isFinite(a)&&Number.isFinite(b)&&a&&b)coords[r.stop_code]=[a,b]}render();el('status').textContent='נטענו קואורדינטות לתחנות'};
 async function scan(file){shapeIndex={};shapeReady=false;const c=stops().map(s=>coords[s[0]]).filter(Boolean);if(!c.length)throw Error('יש לטעון stops.txt קודם');const lat=c.map(x=>x[0]),lon=c.map(x=>x[1]),bounds=[Math.min(...lat)-.02,Math.max(...lat)+.02,Math.min(...lon)-.02,Math.max(...lon)+.02];let offset=0,carry='',header=null,count=0;const decoder=new TextDecoder();while(offset<file.size){const end=Math.min(file.size,offset+1024*1024),chunk=decoder.decode(await file.slice(offset,end).arrayBuffer(),{stream:end<file.size});offset=end;const parts=(carry+chunk).split(/\r?\n/);carry=parts.pop();for(const line of parts){if(!header){header=line.replace(/^\uFEFF/,'').split(',');continue}const v=line.split(','),get=k=>v[header.indexOf(k)],id=get('shape_id'),a=+get('shape_pt_lat'),b=+get('shape_pt_lon'),seq=+get('shape_pt_sequence');if(id&&a>=bounds[0]&&a<=bounds[1]&&b>=bounds[2]&&b<=bounds[3]){(shapeIndex[id]??=[]).push([seq,a,b]);count++}}el('status').textContent='מעבד shapes.txt: '+Math.round(offset/file.size*100)+'%';await new Promise(r=>setTimeout(r,0))}shapeReady=true;el('status').textContent='נסרקו '+Object.keys(shapeIndex).length+' צורות באזור. לחץ הצג מסלול.'}
@@ -249,5 +283,5 @@ function onPos(p){
 el('start').onclick=()=>{follow=true;if(last)followBus();if(!window.isSecureContext){el('gps').textContent='נדרש HTTPS';return}if(watch!==null)return;el('gps').textContent='מבקש הרשאת מיקום...';watch=navigator.geolocation.watchPosition(onPos,e=>{el('gps').textContent='שגיאת GPS: '+e.message},{enableHighAccuracy:true,maximumAge:1000,timeout:20000})};
 el('stop').onclick=()=>{if(watch!==null)navigator.geolocation.clearWatch(watch);watch=null;el('gps').textContent='GPS נעצר'};
 el('center').onclick=()=>{follow=true;if(last){map.setZoom(16);followBus()}updateHeadingDebug()};
-map.on('dragstart',()=>{if(centering)return;follow=false;if(watch!==null)el('gps').textContent='מעקב מפה מושהה · לחץ מרכז על האוטובוס';updateHeadingDebug()});map.on('zoomend resize rotate',()=>{if(follow&&last)followBus()});render();updateHeadingDebug();
+map.on('dragstart',()=>{if(centering)return;follow=false;if(watch!==null)el('gps').textContent='מעקב מפה מושהה · לחץ מרכז על האוטובוס';updateHeadingDebug()});map.on('zoomend resize rotate',()=>{if(follow&&last)followBus()});render();updateHeadingDebug();loadApprovedRoute();
 </script></body></html>
