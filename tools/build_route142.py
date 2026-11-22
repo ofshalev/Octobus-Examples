@@ -10,7 +10,7 @@ def main():
  if not os.path.isfile(source): urllib.request.urlretrieve(URL,source)
  with zipfile.ZipFile(source) as z:
   agencies={r['agency_id']:r.get('agency_name','') for r in rows(z,'agency.txt')}
-  ids={r['route_id'] for r in rows(z,'routes.txt') if r.get('route_short_name','').strip()=='142' and agencies.get(r.get('agency_id',''),'').strip()=='דן'}
+  ids={r['route_id'] for r in rows(z,'routes.txt') if r.get('route_short_name','').strip()=='142' and 'דן' in agencies.get(r.get('agency_id',''),'')}
   if not ids: raise ValueError('Dan 142 not found')
   trips={r['trip_id']:r for r in rows(z,'trips.txt') if r.get('route_id') in ids and r.get('shape_id')}
   trip_stops=defaultdict(list)
