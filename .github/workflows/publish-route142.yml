@@ -1,5 +1,9 @@
 name: Publish Dan 142 GTFS routes
 on:
+  push:
+    paths:
+      - 'tools/build_route142.py'
+      - '.github/workflows/publish-route142.yml'
   workflow_dispatch:
   schedule:
     - cron: '35 2 * * *'
